@@ -25,7 +25,7 @@ struct Function{
     name:String,
     input:Vec<FunctionInput>,
     output:Option<Type>,
-    block:Block,
+    expr:Expr,
 }
 #[derive(Debug)]
 struct FunctionInput{
@@ -33,23 +33,48 @@ struct FunctionInput{
     input_type:Type,
 }
 #[derive(Debug)]
-struct Block{
-    statements:Vec<Statement>,
+enum Expr{
+    None,
+    Assign(StatementAssign),
+    CallFunction(),
+    Block(ExprBlock)
 }
-impl Block{
-    fn placeholder() -> Self{
-        Self{
-            statements: Vec::new(),
-        }
-    }
+#[derive(Debug)]
+struct ExprBlock{
+    statements:Vec<Statement>,
 }
 #[derive(Debug)]
 enum Statement{
-    None,
-    NewVariable{
-        var:Variable,
-        value:Block,
-    }
+    Let(StatementLet),
+}
+#[derive(Debug)]
+struct StatementLet{
+    left:VariableWType,
+    right:Expr,
+}
+#[derive(Debug)]
+struct VariableWType{
+    variable:Variable,
+    ty:Option<Type>,
+}
+#[derive(Debug)]
+struct StatementAssign{
+    left:Box<Expr>,
+    right:Box<Expr>,
+}
+#[derive(Debug)]
+struct Local{
+    pattern:Pattern
+}
+#[derive(Debug)]
+enum Pattern{
+    Literal,
+    Type(PatternType)
+}
+#[derive(Debug)]
+struct PatternType{
+    pattern:Box<Pattern>,
+    ty:Type,
 }
 #[derive(Debug)]
 struct Variable{
@@ -95,7 +120,6 @@ impl Parser{
             else{
                 break;
             };
-
             match token.token{
                 Token::NewFunction => {
                     let function = self.parse_function()?;
@@ -106,24 +130,62 @@ impl Parser{
         }
         Ok(())
     }
-    fn parse_block(&self) -> Result<Block,ParseError>{
-        let token = self.next_token("Expected start of block")?;
+    fn parse_expr_block(&self) -> Result<Expr,ParseError>{
+        let mut statements = Vec::new();
+        loop{
+            let token = self.peek_token("Expected start of block")?;
+            //TODO
+            if token.token == Token::DoubleColon{
+                self.next_token("")?;
+                break;
+            }
+            let statement = self.parse_statement()?;
+            statements.push(statement);
+        }
+        Ok(Expr::None)
+    }
+    fn parse_expr(&self) -> Result<Expr,ParseError>{
+        let token = self.next_token("")?;
+        match token.token{
+            Token::Name(name) => {
+                //return Ok(Expr::)
+            },
+            _ => {}
+        }
+        Err(ParseError::Placeholder)
+    }
+    fn parse_statement(&self) -> Result<Statement,ParseError>{
+        let token = self.next_token("Expected start of expression")?;
         let mut contents:Vec<Statement> = Vec::new();
         match token.token{
+            // Token::LeftBraces => {
+            //     let expr = self.parse_expr_block()?;
+            //     self.expect_token(Token::EndSentence, "Expected ';'")?;
+            // }
             Token::NewVariable => {
-                let var_name = self.parse_name("Expected variable name")?;
+                let var_w_type = self.parse_var_w_type()?;
                 self.expect_token(Token::Eq, "Expected '='")?;
+                let expr = self.parse_expr()?;
                 //TODO
             }
-            Token::Name(name) => {
-                let token = self.next_token("Expected SOMETHING")?;
-                //maybe a function?
-                if token.token == Token::LeftParen{
-                    //indeed, a function.
-                    
-                }
-                //TODO
-            }
+            // Token::Name(name) => {
+            //     let token = self.next_token("Expected SOMETHING")?;
+            //     //maybe a function?
+            //     if token.token == Token::LeftParen{
+            //         //indeed, a function.
+            //         let mut fn_arguments = Vec::new();
+            //         loop{
+            //             let token = self.next_token("Expected ')' or expr")?;
+            //             if token.token == Token::RightParen{
+            //                 break;
+            //             }
+            //             if let Token::Name(var_name) = token.token{
+            //                 fn_arguments.push(var_name);
+            //             }
+            //         }
+            //     }
+            //     //TODO
+            // }
             _ => {}
         }
         Err(ParseError::Placeholder)
@@ -152,16 +214,23 @@ impl Parser{
                 self.next_token("Expected function argument name")?;
             }
         }
-        self.expect_token(Token::LeftBraces,"Expected '{'")?;            
-        let block = self.parse_block()?;
-        self.expect_token(Token::RightBraces, "Expected '}'")?;
+        self.expect_token(Token::Colon,"Expected ':'")?;            
+        let expr = self.parse_expr_block()?;
         Ok(Function{
             scope: Scope,
             name: fn_name,
             input: fn_arguments,
             output: None,
-            block,
+            expr,
         })
+    }
+    fn peek_token(&self, unwrap_msg:&str) -> Result<TokenInfo, ParseError>{
+        if let Some(token) = self.tokens.lock().unwrap().peek(){
+            Ok(token.clone())
+        }
+        else{
+            return Err(ParseError::InvalidToken(self.tokens_info.last_char.clone(),unwrap_msg.to_string()));
+        }
     }
     fn next_token(&self, unwrap_msg:&str) -> Result<TokenInfo, ParseError>{
         if let Some(token) = self.tokens.lock().unwrap().next(){
@@ -186,6 +255,19 @@ impl Parser{
         else{
             Err(ParseError::InvalidToken(token.char_range, unwrap_msg.to_string()))
         }
+    }
+    fn parse_var(&self) -> Result<Variable,ParseError>{
+        let name = self.parse_name("Expected variable name")?;
+        Ok(Variable { scope: Scope, name })
+    }
+    fn parse_var_w_type(&self) -> Result<VariableWType,ParseError>{
+        let variable = self.parse_var()?;
+        let mut ty = None;
+        let token = self.peek_token("Expected :")?;
+        if token.token == Token::Colon{
+            ty = Some(self.parse_type()?);
+        }
+        Ok(VariableWType { variable, ty })
     }
     fn parse_type(&self) -> Result<Type,ParseError>{
         let mut token = self.next_token("Expected type ")?;

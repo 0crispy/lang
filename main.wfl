@@ -1,0 +1,219 @@
+fn main():
+	let num = 42
+	let s = "walternate"
+	
+	while num < 50:
+		num += 1
+	::
+	
+	if num > 40:
+		print("over 40")	
+	else if s != "walternate":
+		print("not over 40")
+    ::
+		
+	let sum = 0
+	for i in 0..100:
+		sum += i
+	::
+	let other_sum = 0;
+	for i in (0..100).rev():
+		sum = sum + i
+	::
+
+	fn fib(n:u32) -> u32:
+		if n < 2:
+			ret 1
+		::
+		ret fib(n-2) + fib(n-1)
+	::
+	
+	fn adder(x:'Int) -> 'Fn:
+		fn a(y:'Int) -> 'Int: x + y :: 
+		ret a
+	::
+	let a1 = adder(9)
+	let a2 = adder
+	print(a1(16)) //25
+	print(a2(36)(64)) //100
+	
+	fn takes_any(a:'Prt):
+		print(a)
+	::
+	// Traits:
+	// 'Any - literally any value.  
+	// 'Prt - value that is printable. Most values are printable.
+	// 'Num - any number. includes i16, i32, i64, u16, u32, u64, i8, u8, f32, f64...
+	// 'Int - integer. includes all 'Num, except for floats.
+	// 'Uint - unsigned integer. Includes all 'Uint except for ints.
+	// 'Fn - function.
+	// 'Str - includes string.
+	// 'Rf - reference trait. 
+	// 'Err - error trait. includes 'Str and others.
+	trait 'MyTrait:
+		fn my_fn(self) -> 'Num
+	::
+	impl 'MyTrait for 'Int:
+		fn my_fn(self) -> 'Num:
+			self
+		::
+	::
+	impl 'MyTrait for 'Str:
+		fn my_fn(self) -> 'Num:
+			ret self.len()
+		::
+	}
+	struct Point:
+		x: f32,
+		y: f32,	
+	::
+	impl Point:
+		fn magnitude(self) -> f32:
+			ret (self.x*self.x+self.y*self.y).sqrt()
+		::
+	::
+	impl 'MyTrait for Point:
+		fn my_fn(self) -> 'Num:
+			ret self.magnitude()
+		::
+	::
+	
+	//Thing with traits:
+	trait 'ABCTrait: ::
+	trait 'ATrait: :: impl 'ABCTrait for 'ATrait: ::
+	trait 'BTrait: :: impl 'ABCTrait for 'BTrait: ::
+	fn takes_abc(abc:'ABCTrait): ::
+	struct MyData
+	impl 'ATrait for MyData 
+	impl 'BTrait for MyData
+	let my_data = MyData
+	// takes_abc(my_data); //Gives compile error!
+	// MyData implements multiple traits, which 
+	// have 'ABCTrait implemented: 'ATrait and 'BTrait.
+	// What you can do:
+	// 1. change the function to only take 'ATrait or 'BTrait OR MyData.
+	// 2. Remove implementations of either 'ATrait of 'BTrait from MyData
+	// 3. Pass my_data as 'ATrait or 'BTrait to the function:
+	// takes_abc(my_data as 'ATrait);
+	
+	let my_data = Point: x:0.0,y:5.0 ::
+	let my_data_ref = my_data& //& is macro for .ref()
+	// Inside, it is stored as Ref{idt:Idt}.
+	// Idt is identifier. It's a thing that stores the current 
+	// scope and variable name(hash). Ref(Idt) implements 'Rf.
+	let my_vec = Vec.new(Point) //vectors.
+	my_vec.push(Point(x:1.0,y:5.0))
+	let point_ref = my_vec&[0]
+	// Inside, it is stored as ElRef{ref:'Rf, id:u64}
+	// ElRef stores the reference to the vector/array AND the id.
+	
+	let vec_of_vecs = Vec.new(Vec)
+	vec_of_vecs.push([0.5,0.4])
+	let my_ref = vec_of_vecs&[0][0]
+	// VecEl{ref:ElRef{ref:Ref{ref:vec_of_vecs},id:0}, id:0}
+	
+	if let Ok(my_ref_pure) = my_data_ref*: //* is macro for .deref()
+		//do anything with my_ref_pure.
+	::
+	
+	//errors (results).
+	let yeah_cool = Result.Ok("yeah cool")
+	let oh_no = Result.Error("oh no")
+	if let Ok(some_value) = yeah_cool:
+		print(some_value)
+	::
+	//all functions may return error, even though the return type is not Res.
+	fn divide(num1:'Num, num2:'Num) -> 'Num:
+		if num2 == 0.0: //'Num.eq(x:'Num)
+			error("Can't divide by zero!")
+		::
+		else:
+			ret num1 / num2
+		::
+	::
+	//if a function does not return error, you can add the 'safe' keyword.
+	//this way, other functions will not have to check for errors.
+	safe fn safe_divide(num1:'Num, num2:'Num) -> 'Num:
+		if num2 == 0.0: //'Num.eq(x:'Num)
+			ret f64.INFINITY
+		::
+		else:
+			num1 / num2
+		::
+	::
+	//checking for errors:
+	fn my_fn(num1:'Num, num2:'Num) -> 'Num:
+		let result = safe_divide(num1,num2) //all fine.
+		let other_result = divide(num1, num2)?
+		// the '?' is macro for .return_fail()
+		// It returns error and if it is okay, it turns into the value.
+		// if you dont wanna return, do that: (e.g. in safe functions)
+		if let Ok(my_res) = divide(num1, num2):
+			//do stuff with my res.
+		::
+		// There also exists .continue_fail() and break_fail(). 
+		
+		//You may also not unwrap the result:
+		let other_result = divide(num1, num2)
+		other_result += 5.0 //BUT if other_result is error, this will CRASH the program.
+		
+		//yes, the program may crash. But only in these cases:
+		// 1. Result was unwrapped to error. If you're so brave to use Result
+		// 		without checking, then you should take responsibility that it doesn't crash.
+		// 		Otherwise, a lot of safe functions would be impossible. 
+		// 		Funny thing: a function that crashes is considered 'safe' in here, but a 
+		// 		function that just returns error is not 'safe'.
+		// 2. Reference was unwrapped to error. Similar to the first one. 
+		// 		Don't play with fire.
+		
+		
+		// This is how indexing is possible: we can never know if the index is correct.
+		// But if you are 100% sure and don't want to unwrap every single value,
+		// you can just pray and index.
+		let my_vec = [12,65,12456,45] as Vec
+		//i'm super safe.
+		//if it is error, it doesn't do anything and just skips.
+		if let Ok(val) = my_arr&[0]*:
+			val = 65;
+		::
+		//i like returning errors.
+		my_vec[1] =? 4564654
+		// =? basically checks first if the value is valid (if it isn't, it returns error).
+		// If it is valid, then it performs the set().
+		//i like playing with fire OR i know what i'm doing.
+		my_vec[10000] = 0 //in this case, you are just fucking stupid.
+	}
+	fn fn_that_returns_any(a:'Num) -> 'Any:
+		if rand_bool():
+			ret a
+		::
+		else:
+			ret "whatever"
+		::
+	::
+	
+	let num:f32 = fn_that_returns_any(0.0) //might crash.
+	let num2 = fn_that_returns_any(9.1) as f32 //also might crash. (the same thing)
+	let other_num = fn_that_returns_any(5.4) as? f32 //might return error, if you use other_num in a context of f32
+	if let Ok(a) = myfn_that_returns_any_fn(10.0) as? f32: //never crashes
+		a+=5.0;
+	::
+	
+	//threading and tasks:
+	//...			
+}
+
+struct GenericThing:
+	const T:<'Any-Self>, //we need minus Self because it stores a value of type T. if T would be GenericThing, GenericThing would be of infinite size.
+	my_vec:Vec,
+	value:T,
+::
+impl GenericThing:
+	fn New(value:'Any-Self):
+		ret GenericThing(
+			T,
+			my_vec:Vec.new(<value>), //the <x> gets the type of x.
+			value,
+		)
+	::
+::

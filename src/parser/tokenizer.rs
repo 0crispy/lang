@@ -19,12 +19,12 @@ pub enum Token{
 
     EndSentence,
     Colon,
+    DoubleColon,
     Comma,
 
     LeftParen,
     RightParen,
-    LeftBraces,
-    RightBraces,
+
 
     SingleQuote,
 
@@ -69,7 +69,20 @@ impl Tokens{
     }
     fn push_token(&mut self, token:Token, char_id:usize){
         self.push_token_name(char_id);
-        self.tokens.push(TokenInfo::new(token, char_id..char_id));
+        if self.tokens.len() > 0{
+            if token == Token::Colon{
+                let id = self.tokens.len()-1;
+                if let Some(token_info) = self.tokens.get(id){
+                    if token_info.token == Token::Colon{
+                        if token_info.char_range.start + 1 == char_id{
+                            self.tokens[id] = TokenInfo::new(Token::DoubleColon, token_info.char_range.start..char_id);
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+        self.tokens.push(TokenInfo::new(token.clone(), char_id..char_id));
     }
 }
 #[derive(Debug)]
@@ -90,8 +103,6 @@ pub fn tokenize(input: &str) -> Result<Tokens, TokenizerError> {
                 let t = match token{
                     '(' => Token::LeftParen,
                     ')' => Token::RightParen,
-                    '{' => Token::LeftBraces,
-                    '}' => Token::RightBraces,
                     '=' => Token::Eq,
                     '+' => Token::Plus,
                     '-' => Token::Minus,
